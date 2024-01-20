@@ -5,7 +5,7 @@ import psycopg2
 from sqlalchemy import create_engine
 
 # tem que fazer uma modificação pra ler a partir da 3 linha (ou outra dependendo da planilha)
-START = 3
+START = 2
 
 PG_ENGINE = os.getenv('PG_ENGINE')
 PG_CONN = os.getenv('PG_CONN')
