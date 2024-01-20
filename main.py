@@ -1,9 +1,10 @@
 """Script pra conectar planilha de controle a um banco Postgres"""
 import os
+import logging
 import pandas as pd
 import psycopg2
-import logging
 from sqlalchemy import create_engine, inspect
+from pangres import upsert
 
 PG_ENGINE = os.getenv("PG_ENGINE")
 PG_CONN = os.getenv("PG_CONN")
@@ -13,7 +14,6 @@ TO_SKIP = 3
 def main():
     """Função que lê a planilha, cria a tabela e manda os dados pro banco Postgres."""
     logging.basicConfig(level=logging.INFO)
-
 
     # Le a planilha, primeira folha (0), pula TO_SKIP linhas (conta o cabeçalho pra não incluir ele)
     try:
@@ -27,57 +27,57 @@ def main():
         )
         logging.info("Ok")
     except Exception as e:
-        logging.error(f"Erro ao ler a planilha: {e}")
+        logging.error("Erro ao ler a planilha: %s", e)
         return
 
     # Nao sei se ta correto, tive que usar o engine separado pq o
     # Pandas tava reclamando que tinha só suporta
     # sqlalchemy e outros engines. Taentar depois só com o psycopg2
-    conn = psycopg2.connect(PG_CONN)
-    engine = create_engine(PG_ENGINE)
+    with psycopg2.connect(PG_CONN) as conn:
+        engine = create_engine(PG_ENGINE)
 
-    # Create a database cursor
-    cursor = conn.cursor()
+        # Create a database cursor
+        with conn.cursor() as cursor:
+            try:
+                logging.info("Criando banco")
+                cursor.execute(
+                    """CREATE TABLE IF NOT EXISTS controle_material (
+                        id SERIAL PRIMARY KEY,
+                        codigo INT,
+                        data DATE,
+                        autor VARCHAR(255),
+                        titulo VARCHAR(255),
+                        link VARCHAR(255)
+                    )"""
+                )
+                conn.commit()
+                logging.info("Banco criado com sucesso")
+            except Exception as e:
+                logging.error("Erro ao criar banco: %s", e)
+                return
 
-    try:
-        print("Criando banco")
-        cursor.execute(
-            """CREATE TABLE IF NOT EXISTS controle_material (
-                id SERIAL PRIMARY KEY,
-                codigo INT,
-                data DATE,
-                autor VARCHAR(255),
-                titulo VARCHAR(255),
-                link VARCHAR(255)
-            )"""
-        )
-        conn.commit()
+            try:
+                inspector = inspect(engine)
+                if not inspector.has_table("controle_material"):
+                    raise ValueError("Tabela 'controle_material' não existe")
+            except ValueError as e:
+                logging.error("Erro ao verificar tabela: %s", e)
+                return
 
-    except Exception as e:
-        print(f"Erro ao criar banco: {e}")
-    finally:
-        print("Ok")
+            try:
+                logging.info("Inserindo dados no banco")
+                df.to_sql(
+                    "controle_material",
+                    engine,
+                    index=False,
+                    if_exists="replace",
+                )
+                logging.info("Dados inseridos com sucesso")
+            except Exception as e:
+                logging.error("Erro ao inserir dados: %s", e)
+                return
 
-    try:
-        inspector = inspect(engine)
-        if not inspector.has_table("controle_material"):
-            raise ValueError("Tabela 'controle_material' não existe")
-    except:
-        raise ValueError("Tabela 'controle_material' não existe")
-
-    try:
-        print("Inserindo dados no banco")
-        df.to_sql("controle_material", engine, index=False, if_exists="replace")
-    except Exception as e:
-        print(f"Erro ao inserir dados: {e}")
-    finally:
-        print("Ok")
-
-    # Commit the changes and close the connections
-    conn.commit()
-    cursor.close()
-    conn.close()
-    print("Fim do script")
+    logging.info("Fim do script")
 
 
 if __name__ == "__main__":
