@@ -1,10 +1,8 @@
+"""Script bla bla bla"""
+import os
 import pandas as pd
 import psycopg2
 from sqlalchemy import create_engine
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
 
 # tem que fazer uma modificação pra ler a partir da 3 linha (ou outra dependendo da planilha)
 START = 3
@@ -18,7 +16,7 @@ def main():
     # Ler a planilha com pandas, no caso a primeira folha e pula START linhas
     df = pd.read_excel("Controle2.xlsx", 0, skiprows=START)
 
-    # Nao sei se ta correto, tive que usar o engine separado pq o Pandas tava reclamando que tinha só suporta 
+    # Nao sei se ta correto, tive que usar o engine separado pq o Pandas tava reclamando que tinha só suporta
     # sqlalchemy e outros engines. Taentar depois só com o psycopg2
     conn = psycopg2.connect(PG_CONN)
     engine = create_engine(PG_ENGINE)
