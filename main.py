@@ -8,7 +8,8 @@ from pangres import upsert
 
 PG_ENGINE = os.getenv("PG_ENGINE")
 PG_CONN = os.getenv("PG_CONN")
-TO_SKIP = 3
+ROWS_TO_SKIP = 3
+TABELA = "controle_material"
 
 
 def main():
@@ -16,66 +17,46 @@ def main():
     logging.basicConfig(level=logging.INFO)
 
     # Le a planilha, primeira folha (0), pula TO_SKIP linhas (conta o cabeçalho pra não incluir ele)
-    try:
-        logging.info("Lendo planilha com pandas")
-        df = pd.read_excel(
-            "Controle.xlsm",
-            0,
-            skiprows=TO_SKIP,
-            header=None,
-            names=["codigo", "data", "autor", "titulo", "link"],
-        )
-        logging.info("Ok")
-    except Exception as e:
-        logging.error("Erro ao ler a planilha: %s", e)
-        return
+    logging.info("Lendo planilha com pandas")
+    df = pd.read_excel(
+        "Controle.xlsm",
+        0,
+        skiprows=ROWS_TO_SKIP,
+        header=None,
+        names=["codigo", "data", "autor", "titulo", "link"],
+    ).dropna()
+    logging.info("Ok")
 
-    # Nao sei se ta correto, tive que usar o engine separado pq o
-    # Pandas tava reclamando que tinha só suporta
-    # sqlalchemy e outros engines. Taentar depois só com o psycopg2
     with psycopg2.connect(PG_CONN) as conn:
         engine = create_engine(PG_ENGINE)
-
         # Create a database cursor
         with conn.cursor() as cursor:
-            try:
+            inspector = inspect(engine)
+            if not inspector.has_table(TABELA):
                 logging.info("Criando banco")
                 cursor.execute(
-                    """CREATE TABLE IF NOT EXISTS controle_material (
+                    f"""CREATE TABLE IF NOT EXISTS {TABELA} (
                         id SERIAL PRIMARY KEY,
                         codigo INT,
                         data DATE,
                         autor VARCHAR(255),
                         titulo VARCHAR(255),
                         link VARCHAR(255)
-                    )"""
+                        )"""
                 )
                 conn.commit()
                 logging.info("Banco criado com sucesso")
-            except Exception as e:
-                logging.error("Erro ao criar banco: %s", e)
-                return
+            else:
+                logging.info("Tabela já existe")
 
-            try:
-                inspector = inspect(engine)
-                if not inspector.has_table("controle_material"):
-                    raise ValueError("Tabela 'controle_material' não existe")
-            except ValueError as e:
-                logging.error("Erro ao verificar tabela: %s", e)
-                return
-
-            try:
                 logging.info("Inserindo dados no banco")
                 df.to_sql(
                     "controle_material",
                     engine,
                     index=False,
-                    if_exists="replace",
+                    if_exists="append",
                 )
                 logging.info("Dados inseridos com sucesso")
-            except Exception as e:
-                logging.error("Erro ao inserir dados: %s", e)
-                return
 
     logging.info("Fim do script")
 
