@@ -54,7 +54,7 @@ def main():
                     "controle_material",
                     engine,
                     index=False,
-                    if_exists="append",
+                    if_exists="replace",
                 )
                 logging.info("Dados inseridos com sucesso")
 
